@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ducky Derby: Heather Joy 💫🌻🌙 50-Level Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        canvas { display: block; }
+        .hud-element { pointer-events: auto; }
+        .sunflower-glow { text-shadow: 0 0 15px #fbbf24, 0 0 30px #f59e0b; }
+        
+        /* Fixed Mobile Controls Layout */
+        #mobile-controls {
+            position: absolute; bottom: 30px; left: 0; right: 0;
+            display: none; justify-content: space-between; padding: 0 20px;
+            pointer-events: none; z-index: 100;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 15px; pointer-events: none; }
+        .control-row { display: flex; gap: 15px; pointer-events: none; }
+        
+        .control-btn {
+            width: 65px; height: 65px; background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: white; pointer-events: auto;
+            user-select: none; backdrop-filter: blur(8px);
+            transition: transform 0.1s, background 0.1s;
+        }
+        .control-btn:active { transform: scale(0.9); background: rgba(251, 191, 36, 0.4); }
+        
+        @media (max-width: 768px) { #mobile-controls { display: flex; } }
+        
+        #start-screen { z-index: 200; }
+        
+        .floating { animation: float 3s ease-in-out infinite; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer" class="absolute inset-0 pointer-events-none z-10 flex flex-col">
+    <!-- Start Screen -->
+    <div id="start-screen" class="flex flex-col items-center justify-center h-full bg-black/95 text-white p-6 text-center hud-element pointer-events-auto">
+        <div class="mb-4 text-6xl floating">💫🌻🌙</div>
+        <h1 class="text-5xl md:text-8xl font-black italic tracking-tighter sunflower-glow mb-2 text-yellow-400">DUCKY DERBY</h1>
+        <h2 class="text-xl md:text-3xl font-bold text-white mb-6">HEATHER JOY CHALLENGE</h2>
+        
+        <div id="level-select" class="mb-8 bg-white/5 p-5 rounded-2xl border border-white/10 max-w-sm">
+            <p class="text-yellow-400 font-black mb-1">50 LEVELS OF QUACK-TION</p>
+            <p class="text-xs opacity-70 leading-relaxed">Avoid river logs, blast your quack-zooka, and leave poop traps for rivals. Reach Level 50 to win!</p>
+        </div>
+        
+        <button id="start-btn" class="px-14 py-5 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-2xl md:text-3xl rounded-full transition-all transform hover:scale-105 shadow-[0_0_40px_rgba(251,191,36,0.3)]">RACE START</button>
+        
+        <p class="mt-8 text-[10px] uppercase tracking-widest opacity-40">Desktop: WASD + Shift | Mobile: On-Screen Controls</p>
+    </div>
+
+    <!-- HUD (In-Game Only) -->
+    <div id="game-hud" class="hidden w-full p-4 flex justify-between items-start">
+        <div class="flex flex-col gap-2">
+            <div class="bg-black/70 p-2 md:p-3 rounded-xl border border-yellow-400/50 backdrop-blur-md">
+                <div class="text-white text-[8px] md:text-[10px] uppercase font-bold opacity-70">Level</div>
+                <div id="level-display" class="text-xl md:text-3xl font-black text-yellow-400">1 / 50</div>
+            </div>
+        </div>
+        
+        <div class="text-center flex-1 px-4">
+            <div class="text-white text-sm md:text-xl font-black tracking-tighter sunflower-glow whitespace-nowrap">HEATHER JOY 💫</div>
+            <div id="distance-bar" class="w-full max-w-[150px] md:max-w-[200px] h-2 bg-white/10 rounded-full mt-2 mx-auto overflow-hidden border border-white/20">
+                <div id="distance-fill" class="h-full bg-yellow-400 w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <div class="bg-black/70 p-2 md:p-4 rounded-xl border border-white/30 backdrop-blur-md">
+            <div id="item-icon" class="text-2xl md:text-4xl">🔫</div>
+        </div>
+    </div>
+
+    <!-- Level Clear Modal -->
+    <div id="level-clear" class="hidden flex-col items-center justify-center h-full bg-black/90 text-white p-6 text-center hud-element pointer-events-auto">
+        <h1 class="text-5xl font-black text-yellow-400 mb-2 italic">LEVEL CLEAR!</h1>
+        <div class="text-2xl mb-8">💫 🌻 🌙</div>
+        <button id="next-btn" class="px-14 py-5 bg-white text-black font-black text-2xl rounded-full transform hover:scale-110 transition-transform">NEXT LEVEL</button>
+    </div>
+
+    <!-- Adjusted Mobile Controls (Bottom-aligned, no overlap with buttons) -->
+    <div id="mobile-controls">
+        <div class="control-row">
+            <div id="btn-left" class="control-btn">⬅️</div>
+            <div id="btn-right" class="control-btn">➡️</div>
+        </div>
+        <div class="control-group">
+            <div id="btn-jump" class="control-btn" style="background: rgba(251, 191, 36, 0.2); border-color: #fbbf24;">🚀</div>
+            <div id="btn-item" class="control-btn" style="background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6;">💩</div>
+        </div>
+    </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script>
+    // --- Configuration ---
+    let currentLevel = 1;
+    const MAX_LEVELS = 50;
+    const LEVEL_LENGTH = 1600; 
+    const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'ducky-derby-50';
+
+    // --- State ---
+    let gameState = 'MENU';
+    let player = {
+        pos: new THREE.Vector3(0, 0, 0),
+        vel: new THREE.Vector3(0, 0, 0),
+        rot: 0,
+        speed: 0,
+        targetSpeed: 0,
+        maxSpeed: 1.4,
+        accel: 0.012,
+        jumpPower: 0,
+        isJumping: false,
+        item: 'QUACK', 
+        distance: 0
+    };
+
+    let entities = {
+        ai: [],
+        obstacles: [],
+        items: [],
+        projectiles: [],
+        stars: []
+    };
+
+    // --- Three.js Initialization ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+    sunLight.position.set(50, 100, 50);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    function getTheme(level) {
+        if (level <= 10) return 'SUNFLOWER';
+        if (level <= 20) return 'MIDNIGHT';
+        if (level <= 35) return 'SUNSET';
+        return 'COSMIC';
+    }
+
+    function createDuck(color) {
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 12), new THREE.MeshStandardMaterial({ color, roughness: 0.3 }));
+        body.scale.set(1.1, 0.9, 1.3);
+        group.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 12, 12), new THREE.MeshStandardMaterial({ color, roughness: 0.3 }));
+        head.position.set(0, 0.9, 0.75);
+        group.add(head);
+        const beak = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.5), new THREE.MeshStandardMaterial({ color: 0xff4500 }));
+        beak.position.set(0, 0.85, 1.3);
+        group.add(beak);
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+        const e1 = eye.clone(); e1.position.set(0.2, 1, 1.15);
+        const e2 = eye.clone(); e2.position.set(-0.2, 1, 1.15);
+        group.add(e1, e2);
+        group.castShadow = true;
+        return group;
+    }
+
+    player.mesh = createDuck(0xffff00);
+    scene.add(player.mesh);
+
+    function initLevel(levelNum) {
+        entities.ai.forEach(a => scene.remove(a.mesh));
+        entities.obstacles.forEach(o => scene.remove(o));
+        entities.stars.forEach(s => scene.remove(s));
+        entities.projectiles.forEach(p => scene.remove(p.mesh));
+        entities.ai = []; entities.obstacles = []; entities.stars = []; entities.projectiles = [];
+
+        const theme = getTheme(levelNum);
+        
+        if(theme === 'SUNFLOWER') {
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.Fog(0x87ceeb, 50, 300);
+        } else if(theme === 'MIDNIGHT') {
+            scene.background = new THREE.Color(0x050520);
+            scene.fog = new THREE.Fog(0x050520, 30, 200);
+        } else if(theme === 'SUNSET') {
+            scene.background = new THREE.Color(0xff7f50);
+            scene.fog = new THREE.Fog(0xff7f50, 50, 350);
+        } else {
+            scene.background = new THREE.Color(0x1a0033);
+            scene.fog = new THREE.Fog(0x1a0033, 40, 250);
+        }
+
+        if(!scene.getObjectByName('river')) {
+            const riverGeo = new THREE.PlaneGeometry(40, LEVEL_LENGTH + 600, 20, 80);
+            const riverMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, transparent: true, opacity: 0.75, roughness: 0.1 });
+            const river = new THREE.Mesh(riverGeo, riverMat);
+            river.rotation.x = -Math.PI / 2;
+            river.name = 'river';
+            scene.add(river);
+        }
+        const river = scene.getObjectByName('river');
+        river.position.z = -LEVEL_LENGTH / 2;
+        river.material.color.set(theme === 'MIDNIGHT' ? 0x001133 : (theme === 'COSMIC' ? 0x220044 : 0x0099ee));
+
+        const count = 6 + Math.floor(levelNum / 8);
+        for(let i=0; i<count; i++) {
+            const ai = {
+                mesh: createDuck(new THREE.Color().setHSL(Math.random(), 0.7, 0.5)),
+                pos: new THREE.Vector3((Math.random()-0.5)*30, 0, -20 - (i*20)),
+                speed: 0.65 + (levelNum * 0.012) + Math.random() * 0.15,
+                lane: (Math.random()-0.5)*30
+            };
+            scene.add(ai.mesh);
+            entities.ai.push(ai);
+        }
+
+        const density = 25 + levelNum;
+        for(let i=0; i<density; i++) {
+            const log = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
+            log.rotation.z = Math.PI / 2;
+            log.position.set((Math.random()-0.5)*35, -0.5, -Math.random() * LEVEL_LENGTH - 60);
+            scene.add(log);
+            entities.obstacles.push(log);
+        }
+
+        for(let i=0; i<12; i++) {
+            const star = new THREE.Mesh(new THREE.TorusGeometry(2, 0.3, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+            star.rotation.x = Math.PI / 2;
+            star.position.set((Math.random()-0.5)*30, 0.1, -Math.random() * LEVEL_LENGTH - 60);
+            scene.add(star);
+            entities.stars.push(star);
+        }
+
+        if(!scene.getObjectByName('finish')) {
+            const fGeo = new THREE.BoxGeometry(45, 0.3, 5);
+            const fMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+            const finish = new THREE.Mesh(fGeo, fMat);
+            finish.name = 'finish';
+            scene.add(finish);
+        }
+        scene.getObjectByName('finish').position.set(0, 0.05, -LEVEL_LENGTH);
+
+        player.pos.set(0, 0, 0);
+        player.speed = 0;
+        player.distance = 0;
+        document.getElementById('level-display').innerText = `${levelNum} / ${MAX_LEVELS}`;
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function useItem() {
+        if(gameState !== 'PLAYING') return;
+        if(player.item === 'QUACK') {
+            const q = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshBasicMaterial({color: 0xffff00}));
+            q.position.copy(player.pos).add(new THREE.Vector3(0, 0.5, -2));
+            scene.add(q);
+            entities.projectiles.push({ mesh: q, vel: new THREE.Vector3(0, 0, -3.5) });
+            player.item = 'POOP';
+            document.getElementById('item-icon').innerText = '💩';
+        } else {
+            const p = new THREE.Mesh(new THREE.SphereGeometry(0.5, 6, 6), new THREE.MeshStandardMaterial({color: 0x4b2c20}));
+            p.position.copy(player.pos);
+            scene.add(p);
+            entities.obstacles.push(p);
+            player.item = 'QUACK';
+            document.getElementById('item-icon').innerText = '🔫';
+        }
+    }
+
+    window.addEventListener('keydown', e => {
+        if(e.code === 'Space' && !player.isJumping) player.jumpPower = 0.48;
+        if(e.code === 'ShiftLeft' || e.code === 'KeyE') useItem();
+    });
+
+    let touchL = false, touchR = false;
+    document.getElementById('btn-left').ontouchstart = (e) => { e.preventDefault(); touchL = true; };
+    document.getElementById('btn-left').ontouchend = () => touchL = false;
+    document.getElementById('btn-right').ontouchstart = (e) => { e.preventDefault(); touchR = true; };
+    document.getElementById('btn-right').ontouchend = () => touchR = false;
+    document.getElementById('btn-jump').ontouchstart = (e) => { e.preventDefault(); if(!player.isJumping) player.jumpPower = 0.48; };
+    document.getElementById('btn-item').ontouchstart = (e) => { e.preventDefault(); useItem(); };
+
+    function update() {
+        if(gameState !== 'PLAYING') return;
+
+        player.targetSpeed = player.maxSpeed + (currentLevel * 0.015);
+        player.speed += (player.targetSpeed - player.speed) * player.accel;
+
+        if(keys['ArrowLeft'] || keys['KeyA'] || touchL) {
+            player.pos.x -= 0.4;
+            player.rot += 0.06;
+        }
+        if(keys['ArrowRight'] || keys['KeyD'] || touchR) {
+            player.pos.x += 0.4;
+            player.rot -= 0.06;
+        }
+
+        if(player.jumpPower !== 0 || player.pos.y > 0) {
+            player.pos.y += player.jumpPower;
+            player.jumpPower -= 0.022;
+            player.isJumping = true;
+            if(player.pos.y < 0) {
+                player.pos.y = 0; player.jumpPower = 0; player.isJumping = false;
+            }
+        }
+
+        player.pos.z -= player.speed;
+        player.pos.x = Math.max(-18, Math.min(18, player.pos.x));
+
+        player.mesh.position.copy(player.pos);
+        player.mesh.rotation.y = player.rot + Math.PI;
+        player.mesh.rotation.z = -player.rot * 0.9;
+        player.rot *= 0.88;
+
+        entities.ai.forEach(ai => {
+            ai.pos.z -= ai.speed;
+            ai.pos.x = ai.lane + Math.sin(Date.now() * 0.002 + ai.pos.z) * 4;
+            ai.mesh.position.copy(ai.pos);
+            ai.mesh.rotation.y = Math.PI;
+        });
+
+        entities.obstacles.forEach(obs => {
+            if(!player.isJumping && player.pos.distanceTo(obs.position) < 2.2) {
+                player.speed *= 0.35;
+                player.pos.z += 3; 
+            }
+        });
+
+        entities.stars.forEach((star, i) => {
+            star.rotation.z += 0.12;
+            if(player.pos.distanceTo(star.position) < 3.5) {
+                player.speed += 1.2;
+                scene.remove(star);
+                entities.stars.splice(i, 1);
+            }
+        });
+
+        entities.projectiles.forEach((p, i) => {
+            p.mesh.position.add(p.vel);
+            entities.ai.forEach(ai => {
+                if(p.mesh.position.distanceTo(ai.pos) < 2.5) {
+                    ai.speed = 0.1;
+                    setTimeout(() => ai.speed = 0.7 + (currentLevel * 0.01), 2000);
+                }
+            });
+            if(p.mesh.position.z < player.pos.z - 100) {
+                scene.remove(p.mesh);
+                entities.projectiles.splice(i, 1);
+            }
+        });
+
+        if(player.pos.z < -LEVEL_LENGTH) {
+            gameState = 'CLEAR';
+            document.getElementById('level-clear').classList.remove('hidden');
+            document.getElementById('game-hud').classList.add('hidden');
+        }
+
+        const prog = Math.abs(player.pos.z) / LEVEL_LENGTH;
+        document.getElementById('distance-fill').style.width = (prog * 100) + '%';
+
+        camera.position.lerp(new THREE.Vector3(player.pos.x * 0.4, player.pos.y + 4.5, player.pos.z + 9), 0.12);
+        camera.lookAt(player.pos.x, player.pos.y + 1, player.pos.z - 12);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        update();
+        renderer.render(scene, camera);
+    }
+
+    document.getElementById('start-btn').onclick = () => {
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-hud').classList.remove('hidden');
+        initLevel(currentLevel);
+        gameState = 'PLAYING';
+    };
+
+    document.getElementById('next-btn').onclick = () => {
+        currentLevel++;
+        if(currentLevel > MAX_LEVELS) {
+            alert("HEATHER JOY CHAMPION! 💫🌻🌙");
+            currentLevel = 1;
+        }
+        document.getElementById('level-clear').classList.add('hidden');
+        document.getElementById('game-hud').classList.remove('hidden');
+        initLevel(currentLevel);
+        gameState = 'PLAYING';
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onload = animate;
+</script>
+</body>
+</html>
+
